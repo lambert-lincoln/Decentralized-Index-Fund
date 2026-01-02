@@ -25,8 +25,12 @@ contract HelperConfig is Script {
         address[] tokenCollateralAddresses;
         address[] priceFeedAddresses; // corresponding price feed addresses of collateral tokens
         uint256 deployerKey;
+        address deployerAddress;
     }
 
+    address public DEFAULT_ANVIL_ADDRESS = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    address public DEFAULT_SEPOLIA_ADDRESS = 0x12d98Fbe714E6C4538D94821930aE12523a1538c;
+    address public DEFAULT_MAINNET_ADDRESS = address(0);
     uint256 public DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     constructor() {
@@ -66,7 +70,8 @@ contract HelperConfig is Script {
         return NetworkConfig({
                 tokenCollateralAddresses: tokenAddresses, 
                 priceFeedAddresses: feedAddresses,
-                deployerKey: vm.envUint("SEPOLIA_PRIVATE_KEY")
+                deployerKey: vm.envUint("SEPOLIA_PRIVATE_KEY"),
+                deployerAddress: DEFAULT_SEPOLIA_ADDRESS
             });
     }
 
@@ -85,7 +90,8 @@ contract HelperConfig is Script {
         return NetworkConfig({
             tokenCollateralAddresses: tokenAddresses,
             priceFeedAddresses: feedAddresses,
-            deployerKey: vm.envUint("MAINNET_PRIVATE_KEY") // its 0 lol u thought
+            deployerKey: vm.envUint("MAINNET_PRIVATE_KEY"), // its 0 lol u thought
+            deployerAddress: DEFAULT_MAINNET_ADDRESS
         });
     }
 
@@ -118,7 +124,8 @@ contract HelperConfig is Script {
         return NetworkConfig({
             tokenCollateralAddresses: tokenAddresses,
             priceFeedAddresses: feedAddresses,
-            deployerKey: DEFAULT_ANVIL_PRIVATE_KEY
+            deployerKey: DEFAULT_ANVIL_PRIVATE_KEY,
+            deployerAddress: DEFAULT_ANVIL_ADDRESS
         });
     }
 

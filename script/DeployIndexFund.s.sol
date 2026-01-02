@@ -11,6 +11,7 @@ contract DeployIndexFund is Script {
     IndexToken token;
     IndexFund indexFund;
     HelperConfig helperConfig;
+    
 
     function run() external returns (IndexToken, IndexFund, HelperConfig) {
         helperConfig = new HelperConfig();
@@ -18,7 +19,7 @@ contract DeployIndexFund is Script {
         
         vm.startBroadcast(config.deployerKey);
 
-        token = new IndexToken(msg.sender);
+        token = new IndexToken(config.deployerAddress);
         indexFund = new IndexFund(config.tokenCollateralAddresses, config.priceFeedAddresses, address(token));
         token.transferOwnership(address(indexFund)); // transferring ownership to the Decentralized Index Fund
 

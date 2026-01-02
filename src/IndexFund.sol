@@ -210,13 +210,20 @@ contract IndexFund is ReentrancyGuard {
         emit UserLiquidated(user, msg.sender, tokenCollateralAddress, totalCollateralAwarded, debtToCover);
     }
 
+    function getUsdValue(address token, uint256 amount) external moreThanZero(amount)
+        isAllowedToken(token) nonReentrant returns (uint256) {
+        return _getUsdValue(token, amount);
+    }
+
+    function burn(address from, uint256 amountIndexTokensToBurn) external moreThanZero(amountIndexTokensToBurn) {
+        _burn(from, amountIndexTokensToBurn);
+    }
+
     /* internal & private view & pure functions */
 
     function _getUsdValue(address token, uint256 amount)
         private
         view
-        moreThanZero(amount)
-        isAllowedToken(token)
         returns (uint256 usdValue)
     {
         uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
@@ -229,7 +236,7 @@ contract IndexFund is ReentrancyGuard {
         return (usdAmountInWei * PRECISION) / (standardizedPrice * ADDITIONAL_FEED_PRECISION);
     }
 
-    function _burn(address from, uint256 amountIndexTokensToBurn) private moreThanZero(amountIndexTokensToBurn) {
+    function _burn(address from, uint256 amountIndexTokensToBurn) private {
         bool burnSuccess = i_indexToken.burn(from, amountIndexTokensToBurn);
         if (!burnSuccess) {
             revert IndexFund__BurnFailed();
@@ -299,4 +306,13 @@ contract IndexFund is ReentrancyGuard {
         // recall that 1 dIDX = $1
         return s_IndexFundMinted[user];
     }
+
+    function getAccountInformation(address user) external view returns (uint256, uint256) {
+        return (getTotalMintedValue(user), getAccountCollateralValue(user));
+    }
+    
+    function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) external view returns (uint256) {
+        return _getTokenAmountFromUsd(token, usdAmountInWei);
+    }
+
 }
