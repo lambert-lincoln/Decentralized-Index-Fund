@@ -44,7 +44,7 @@ contract IndexToken is ERC20, Ownable {
         }
 
         // reverts if burnAmount < balanceOf(user)
-        if (amount <= balance) {
+        if (amount >= balance) {
             revert IndexToken__InsufficientBalanceToBurn();
         }
 
