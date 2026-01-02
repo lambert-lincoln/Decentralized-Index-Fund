@@ -210,7 +210,7 @@ contract IndexFund is ReentrancyGuard {
         emit UserLiquidated(user, msg.sender, tokenCollateralAddress, totalCollateralAwarded, debtToCover);
     }
 
-    function getUsdValue(address token, uint256 amount) external moreThanZero(amount)
+    function getUsdValue(address token, uint256 amount) external view moreThanZero(amount)
         isAllowedToken(token) returns (uint256) {
         return _getUsdValue(token, amount);
     }
