@@ -26,7 +26,7 @@ pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard}from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IndexToken} from "./IndexToken.sol";
 import {OracleLib} from "./libraries/OracleLib.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
@@ -76,8 +76,16 @@ contract IndexFund is ReentrancyGuard {
 
     event DepositSuccessful(address indexed from, uint256 amount);
     event TokenMinted(address indexed to, uint256 mintedAmount);
-    event UserLiquidated(address indexed liquidated, address indexed liquidator, address indexed tokenCollateralAddress, uint256 collateralRewarded, uint256 debtCovered);
-    event CollateralRedeemed(address indexed from, address indexed to, address indexed tokenCollateralAddress, uint256 amountRedeemed);
+    event UserLiquidated(
+        address indexed liquidated,
+        address indexed liquidator,
+        address indexed tokenCollateralAddress,
+        uint256 collateralRewarded,
+        uint256 debtCovered
+    );
+    event CollateralRedeemed(
+        address indexed from, address indexed to, address indexed tokenCollateralAddress, uint256 amountRedeemed
+    );
 
     /* Modifiers */
 
@@ -115,7 +123,6 @@ contract IndexFund is ReentrancyGuard {
             s_priceFeeds[tokenCollateralAddresses[i]] = priceFeedAddresses[i];
         }
         i_indexToken = IndexToken(dIDX);
-
     }
 
     /* External Functions */
@@ -159,7 +166,6 @@ contract IndexFund is ReentrancyGuard {
 
         // give collateral back to user
         _redeemCollateral(msg.sender, msg.sender, tokenCollateralAddress, collateralAmount);
-
     }
 
     function mintIndexToken(address to, uint256 amountToMint) external moreThanZero(amountToMint) nonReentrant {
@@ -167,7 +173,12 @@ contract IndexFund is ReentrancyGuard {
         _revertIfHealthFactorIsBroken(to);
     }
 
-    function liquidate(address tokenCollateralAddress, address user /* <- violator */, uint256 debtToCover)
+    function liquidate(
+        address tokenCollateralAddress,
+        address user,
+        /* <- violator */
+        uint256 debtToCover
+    )
         external
         moreThanZero(debtToCover)
         isAllowedToken(tokenCollateralAddress)

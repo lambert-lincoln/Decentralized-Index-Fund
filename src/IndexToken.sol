@@ -19,7 +19,7 @@ contract IndexToken is ERC20, Ownable {
     error IndexToken__AmountMustBeMoreThanZero();
     error IndexToken__InsufficientBalanceToBurn();
 
-    constructor(address ownerAddress) ERC20("DeFi Index", "dIDX") Ownable(ownerAddress) { }
+    constructor(address ownerAddress) ERC20("DeFi Index", "dIDX") Ownable(ownerAddress) {}
 
     function mint(address to, uint256 amount) external onlyOwner returns (bool) {
         // reverts if send to empty address

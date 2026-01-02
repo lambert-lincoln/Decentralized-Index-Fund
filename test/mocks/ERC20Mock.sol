@@ -14,10 +14,10 @@ contract ERC20Mock is ERC20 {
         string memory symbol,
         address initialAccount,
         uint256 initialBalance,
-        uint8 decimals
+        uint8 _decimals
     ) payable ERC20(name, symbol) {
         _mint(initialAccount, initialBalance);
-        i_decimals = decimals;
+        i_decimals = _decimals;
     }
 
     function mint(address account, uint256 amount) public {
