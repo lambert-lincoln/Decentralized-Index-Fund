@@ -45,9 +45,20 @@ contract IndexFundTest is Test {
         ERC20Mock(tokenCollateralAddress[2]).mint(USER, STARTING_USER_BALANCE);
     }
 
+    /* Test Owner */
+
     function testOwnerIsFund() public view {
         assertEq(token.owner(), address(indexFund));
     }
+
+    function testOnlyFundCanMintTokens() public {
+        vm.startPrank(USER);
+        vm.expectRevert();
+        token.mint(USER, 1000);
+        vm.stopPrank();
+    }
+
+    /* Deposit Collateral */
 
     modifier depositedCollateral(address collateralAddress) {
         vm.startPrank(USER);
@@ -70,13 +81,6 @@ contract IndexFundTest is Test {
         assertEq(indexFundWethBalance, DEPOSIT_AMOUNT);
     }
 
-    function testGetUsdValue() public view {
-        uint256 expectedUsd = 2000;
-        // this test assumes we're in anvil chain
-        uint256 usdValue = indexFund.getUsdValue(weth, 1);
-        assertEq(expectedUsd, usdValue);
-    }
-
     function testUserCanDepositWbtc() public {
         // 1. Arrange
         uint256 deposit_amount = 1e8;
@@ -84,17 +88,40 @@ contract IndexFundTest is Test {
         // 2. Act
         vm.startPrank(USER);
         ERC20Mock(wbtc).approve(address(indexFund), deposit_amount);
-        indexFund.depositAndMintdIDX(wbtc, deposit_amount, deposit_amount / 2);
+        indexFund.depositCollateral(wbtc, deposit_amount);
         vm.stopPrank();
 
         // 3. Assert
-        // The Math:
-        // 1 WBTC = $100,000
-        // We expect 100,000 Tokens, BUT scaled to 18 decimals standard
-        uint256 userIDXBalance = token.balanceOf(USER);
-        uint256 expectedIDXBalance = 100000 ether;
-        assertEq(userIDXBalance, expectedIDXBalance);
+        uint256 indexFundWbtcBalance = ERC20Mock(wbtc).balanceOf(address(indexFund));
+        uint256 expectedWbtcBalance = deposit_amount;
+        assertEq(indexFundWbtcBalance, expectedWbtcBalance);
     }
+
+    function testDepositRevertsWithUnapprovedToken() public {
+        ERC20Mock randToken = new ERC20Mock("RAND", "RAND", USER, 1000e8, 18);
+        
+        vm.startPrank(USER);
+
+        vm.expectRevert(abi.encodeWithSelector(IndexFund.IndexFund__TokenNotAllowed.selector, address(randToken)));
+        indexFund.depositCollateral(address(randToken), DEPOSIT_AMOUNT);
+
+        vm.stopPrank();
+    }
+
+    function testCanGetAccountInformationAfterDepositAndMinting() public depositedCollateral(weth) {
+        vm.startPrank(USER);
+        indexFund.mintIndexToken(USER, DEPOSIT_AMOUNT / 2);
+
+        uint256 expectedtotalMinted = DEPOSIT_AMOUNT / 2;
+        uint256 expectedCollateralValue = indexFund.getUsdValue(weth, DEPOSIT_AMOUNT);
+
+        (uint256 totalMinted, uint256 collateralValue) = indexFund.getAccountInformation(USER);
+        
+        assertEq(expectedtotalMinted, totalMinted);
+        assertEq(expectedCollateralValue, collateralValue);
+    }
+
+    /* Test Redeem Collateral */
 
     function testUserCanRedeemCollateral() public depositedCollateral(weth) {
         // 2. Act
@@ -111,14 +138,37 @@ contract IndexFundTest is Test {
         assertEq(expectedFundBalance, indexFundBalance);
     }
 
-    function testDepositRevertsWithUnapprovedToken() public {
-        ERC20Mock randToken = new ERC20Mock("RAND", "RAND", USER, 1000e8, 18);
-        
+
+    function testRevertsIfCollateralZero() public {
         vm.startPrank(USER);
-
-        vm.expectRevert(abi.encodeWithSelector(IndexFund.IndexFund__TokenNotAllowed.selector, address(randToken)));
-        indexFund.depositCollateral(address(randToken), DEPOSIT_AMOUNT);
-
+        ERC20Mock(weth).approve(address(indexFund), DEPOSIT_AMOUNT);
+        vm.expectRevert(IndexFund.IndexFund__MustBeMoreThanZero.selector);
+        indexFund.depositCollateral(weth, 0);
         vm.stopPrank();
     }
+
+    function testRevertIfBalanceInsufficientToBurn() public {
+        vm.prank(address(indexFund));
+        vm.expectRevert(IndexToken.IndexToken__InsufficientBalanceToBurn.selector);
+        token.burn(address(indexFund), 20);
+    }
+
+
+
+    /* Test Getters */
+    
+    function testGetTokenAmountFromUsd() public view {
+        uint256 expected_weth = 1;
+        uint256 eth_usd_price = 2000;
+        uint256 actual_weth = indexFund.getTokenAmountFromUsd(weth, eth_usd_price);
+        assertEq(expected_weth, actual_weth);
+    }
+
+    function testGetUsdValue() public view {
+        uint256 expectedUsd = 2000;
+        // this test assumes we're in anvil chain
+        uint256 usdValue = indexFund.getUsdValue(weth, 1);
+        assertEq(expectedUsd, usdValue);
+    }
+
 }

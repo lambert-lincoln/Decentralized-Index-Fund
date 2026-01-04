@@ -131,8 +131,6 @@ contract IndexFund is ReentrancyGuard {
 
     function depositAndMintdIDX(address tokenCollateralAddress, uint256 collateralAmount, uint256 amountToMint)
         external
-        nonReentrant
-        moreThanZero(collateralAmount)
     {
         // Deposit
         depositCollateral(tokenCollateralAddress, collateralAmount);
@@ -144,7 +142,9 @@ contract IndexFund is ReentrancyGuard {
 
     function depositCollateral(address tokenCollateralAddress, uint256 collateralAmount)
         public
+        nonReentrant
         isAllowedToken(tokenCollateralAddress)
+        moreThanZero(collateralAmount)
     {
         s_collateralDeposited[msg.sender][tokenCollateralAddress] += collateralAmount;
         bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), collateralAmount);
