@@ -47,7 +47,7 @@ contract HelperConfig is Script {
     /// @notice Only use it if collateral takes in many types of collateral
     /// @param addresses - an address type array containing addresses
     /// @return - address array
-    function _pushAddresses(address[] memory addresses) internal returns (address[] memory) {
+    function _pushAddresses(address[] memory addresses) internal pure returns (address[] memory) {
         address[] memory temp = new address[](addresses.length);
         for (uint256 i = 0; i < addresses.length; i++) {
             temp[i] = addresses[i];
@@ -55,7 +55,7 @@ contract HelperConfig is Script {
         return temp;
     }
 
-    function getSepoliaEthConfig() public returns (NetworkConfig memory) {
+    function getSepoliaEthConfig() public view returns (NetworkConfig memory) {
         address[] memory tokenAddresses = new address[](3); // temporary token addresses
         tokenAddresses[0] = 0x7B79995E5F793a0CbA39242d0dB57f56F2F37199; // WETH
         tokenAddresses[1] = 0x922D6956C99E12DFeB3224DEA977D0939758A1Fe; // WTBC
@@ -74,7 +74,7 @@ contract HelperConfig is Script {
         });
     }
 
-    function getMainnetEthConfig() public returns (NetworkConfig memory) {
+    function getMainnetEthConfig() public view returns (NetworkConfig memory) {
         address[] memory tokenAddresses = new address[](3); // temporary token Addresses
         tokenAddresses[0] = 0x7B79995E5F793a0CbA39242d0dB57f56F2F37199; // WETH
         tokenAddresses[1] = 0x922D6956C99E12DFeB3224DEA977D0939758A1Fe; // WTBC
@@ -127,7 +127,7 @@ contract HelperConfig is Script {
         });
     }
 
-    function getActiveNetworkConfig() external returns (NetworkConfig memory) {
+    function getActiveNetworkConfig() external view returns (NetworkConfig memory) {
         return activeNetworkConfig;
     }
 }

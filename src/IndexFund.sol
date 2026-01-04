@@ -43,7 +43,7 @@ contract IndexFund is ReentrancyGuard {
 
     error IndexFund__MustBeMoreThanZero();
     error IndexFund__DepositFailed();
-    error IndexFund__TokenNotAllowed();
+    error IndexFund__TokenNotAllowed(address token);
     error IndexFund__MintFailed();
     error IndexFund__BurnFailed();
     error IndexFund__TransferFailed(address from, address to, uint256 amount);
@@ -106,7 +106,7 @@ contract IndexFund is ReentrancyGuard {
     modifier isAllowedToken(address tokenCollateralAddress) {
         /// @dev should also implement logic for deposits that are not WBTC, WETH or LINK
         if (s_priceFeeds[tokenCollateralAddress] == address(0)) {
-            revert IndexFund__TokenNotAllowed();
+            revert IndexFund__TokenNotAllowed(tokenCollateralAddress);
         }
         _;
     }
@@ -129,7 +129,7 @@ contract IndexFund is ReentrancyGuard {
 
     /* External Functions */
 
-    function depositAndMintdIDX(address tokenCollateralAddress, uint256 collateralAmount)
+    function depositAndMintdIDX(address tokenCollateralAddress, uint256 collateralAmount, uint256 amountToMint)
         external
         nonReentrant
         moreThanZero(collateralAmount)
@@ -139,7 +139,7 @@ contract IndexFund is ReentrancyGuard {
 
         // Minting Logic
         /// @notice This contract assumes 1 dIDX = $1
-        _mintIndexTokens(msg.sender, tokenCollateralAddress, collateralAmount);
+        mintIndexToken(msg.sender, amountToMint);
     }
 
     function depositCollateral(address tokenCollateralAddress, uint256 collateralAmount)
@@ -154,7 +154,7 @@ contract IndexFund is ReentrancyGuard {
         emit DepositSuccessful(msg.sender, collateralAmount);
     }
 
-    function redeemCollateral(address tokenCollateralAddress, uint256 collateralAmount)
+    function redeemCollateral(address tokenCollateralAddress, uint256 collateralAmount, uint256 amountToBurn)
         external
         moreThanZero(collateralAmount)
         isAllowedToken(tokenCollateralAddress)
@@ -165,14 +165,14 @@ contract IndexFund is ReentrancyGuard {
         console.log("USD Value: ", usdValue);
 
         // burn
-        _burn(msg.sender, usdValue);
+        _burn(msg.sender, amountToBurn);
 
         // give collateral back to user
         _redeemCollateral(msg.sender, msg.sender, tokenCollateralAddress, collateralAmount);
     }
 
-    function mintIndexToken(address to, address tokenCollateralAddress, uint256 collateralAmount) external moreThanZero(collateralAmount) nonReentrant {
-       _mintIndexTokens(to, tokenCollateralAddress, collateralAmount);
+    function mintIndexToken(address to, uint256 amountToMint) public moreThanZero(amountToMint) nonReentrant {
+       _mintIndexTokens(to, amountToMint);
         _revertIfHealthFactorIsBroken(to);
     }
 
@@ -256,7 +256,7 @@ contract IndexFund is ReentrancyGuard {
     function _getTokenAmountFromUsd(address token, uint256 usdAmountInWei) private view returns (uint256) {
         uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
-        uint256 normalizedAmount = (usdAmountInWei * PRECISION) / (standardizedPrice * ADDITIONAL_FEED_PRECISION);
+        uint256 normalizedAmount = (usdAmountInWei * PRECISION) / (standardizedPrice);
 
         if (tokenDecimals < 18) {
             return normalizedAmount / 10 ** (18 - tokenDecimals);
@@ -274,8 +274,7 @@ contract IndexFund is ReentrancyGuard {
         }
     }
 
-    function _mintIndexTokens(address to, address tokenCollateralAddress, uint256 collateralAmount) private {
-        uint256 amountToMint = _getUsdValue(tokenCollateralAddress, collateralAmount);
+    function _mintIndexTokens(address to, uint256 amountToMint) private {
         s_IndexFundMinted[to] += amountToMint;
         bool success = i_indexToken.mint(to, amountToMint);
         if (!success) {
