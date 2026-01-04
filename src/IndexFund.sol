@@ -31,7 +31,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IndexToken} from "./IndexToken.sol";
 import {OracleLib} from "./libraries/OracleLib.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import {console} from "forge-std/Test.sol";
 
 using OracleLib for AggregatorV3Interface;
 
@@ -73,6 +72,7 @@ contract IndexFund is ReentrancyGuard {
     uint256 private constant MIN_HEALTH_FACTOR = 1e18; // 1.0
     uint256 private constant LIQUIDATION_BONUS = 10; // incentive for liquidating other users with bad health factor
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    uint256 public constant MIN_LIQUIDATION_AMOUNT =100e18;
 
     /* Events */
 
@@ -160,15 +160,13 @@ contract IndexFund is ReentrancyGuard {
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
     {
-        // valuation
-        uint256 usdValue = _getUsdValue(tokenCollateralAddress, collateralAmount); // = amountToBurn
-        console.log("USD Value: ", usdValue);
-
         // burn
         _burn(msg.sender, amountToBurn);
 
-        // give collateral back to user
+        // remove collateral
         _redeemCollateral(msg.sender, msg.sender, tokenCollateralAddress, collateralAmount);
+
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     function mintIndexToken(address to, uint256 amountToMint) public moreThanZero(amountToMint) nonReentrant {
@@ -187,15 +185,17 @@ contract IndexFund is ReentrancyGuard {
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
     {
+        require(debtToCover >= MIN_LIQUIDATION_AMOUNT || debtToCover == s_IndexFundMinted[user], "Liquidation amount too small");
         // check if user is unhealthy
         if (_healthFactor(user) > MIN_HEALTH_FACTOR) {
             revert IndexFund__UserIsHealthy();
         }
         // debtToCover is in USD, therefore debtToCover = burnAmount
-        _burn(msg.sender, debtToCover);
+        _burn(user, debtToCover);
 
-        // update state variable
-        s_IndexFundMinted[user] -= debtToCover;
+        require(i_indexToken.transferFrom(msg.sender, address(this), debtToCover));
+        i_indexToken.burn(address(this), debtToCover);
+
 
         // Rewarding liquidator
         uint256 bonusCollateralInUsd = (debtToCover * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
@@ -224,37 +224,39 @@ contract IndexFund is ReentrancyGuard {
     }
 
     function burn(address from, uint256 amountIndexTokensToBurn) external moreThanZero(amountIndexTokensToBurn) {
+        require(from == msg.sender, "Can only burn own tokens");
         _burn(from, amountIndexTokensToBurn);
     }
 
     /* internal & private view & pure functions */
 
     function _getUsdValue(address token, uint256 amount) private view returns (uint256 usdValue) {
-        uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
+        uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]), false);
 
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
 
-        uint256 normalizedAmount;
+        usdValue = amount * standardizedPrice;
+
         if (tokenDecimals < 18) {
             // Example with WBTC (8 decimals)
             // 1 WBTC = 1e8
             // Normalized Amount = 1e8 * 10^(18-8) = 1e18
-            normalizedAmount = amount * 10 ** (18 - tokenDecimals);
+            usdValue = usdValue * 10 ** (18 - tokenDecimals);
         } else if (tokenDecimals > 18) {
             // Example with token with 20 decimals
             // 1 egToken = 1e20
             // Normalized Amount = 1e20 / * 10^(20-18) = 1e18
-            normalizedAmount = amount / (10 ** (tokenDecimals - 18));
+            usdValue = usdValue / (10 ** (tokenDecimals - 18));
         } else {
-            normalizedAmount = amount;
+            usdValue = amount;
         }
 
-        usdValue = (normalizedAmount * standardizedPrice) / PRECISION;
+        usdValue = usdValue / PRECISION;
         return usdValue;
     }
 
     function _getTokenAmountFromUsd(address token, uint256 usdAmountInWei) private view returns (uint256) {
-        uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
+        uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]), false);
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
         uint256 normalizedAmount = (usdAmountInWei * PRECISION) / (standardizedPrice);
 
