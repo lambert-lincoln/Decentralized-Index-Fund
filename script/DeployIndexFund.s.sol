@@ -11,12 +11,11 @@ contract DeployIndexFund is Script {
     IndexToken token;
     IndexFund indexFund;
     HelperConfig helperConfig;
-    
 
     function run() external returns (IndexToken, IndexFund, HelperConfig) {
         helperConfig = new HelperConfig();
         HelperConfig.NetworkConfig memory config = helperConfig.getActiveNetworkConfig();
-        
+
         vm.startBroadcast(config.deployerKey);
 
         token = new IndexToken(config.deployerAddress);
@@ -27,5 +26,4 @@ contract DeployIndexFund is Script {
 
         return (token, indexFund, helperConfig);
     }
-
 }

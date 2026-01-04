@@ -56,7 +56,6 @@ contract HelperConfig is Script {
     }
 
     function getSepoliaEthConfig() public returns (NetworkConfig memory) {
-
         address[] memory tokenAddresses = new address[](3); // temporary token addresses
         tokenAddresses[0] = 0x7B79995E5F793a0CbA39242d0dB57f56F2F37199; // WETH
         tokenAddresses[1] = 0x922D6956C99E12DFeB3224DEA977D0939758A1Fe; // WTBC
@@ -68,15 +67,14 @@ contract HelperConfig is Script {
         feedAddresses[2] = 0xc59E3633BAAC79493d908e63626716e204A45EdF; // LINK / USD
 
         return NetworkConfig({
-                tokenCollateralAddresses: tokenAddresses, 
-                priceFeedAddresses: feedAddresses,
-                deployerKey: vm.envUint("SEPOLIA_PRIVATE_KEY"),
-                deployerAddress: DEFAULT_SEPOLIA_ADDRESS
-            });
+            tokenCollateralAddresses: tokenAddresses,
+            priceFeedAddresses: feedAddresses,
+            deployerKey: vm.envUint("SEPOLIA_PRIVATE_KEY"),
+            deployerAddress: DEFAULT_SEPOLIA_ADDRESS
+        });
     }
 
     function getMainnetEthConfig() public returns (NetworkConfig memory) {
-
         address[] memory tokenAddresses = new address[](3); // temporary token Addresses
         tokenAddresses[0] = 0x7B79995E5F793a0CbA39242d0dB57f56F2F37199; // WETH
         tokenAddresses[1] = 0x922D6956C99E12DFeB3224DEA977D0939758A1Fe; // WTBC

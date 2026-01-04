@@ -25,11 +25,13 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IndexToken} from "./IndexToken.sol";
 import {OracleLib} from "./libraries/OracleLib.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {console} from "forge-std/Test.sol";
 
 using OracleLib for AggregatorV3Interface;
 
@@ -135,15 +137,15 @@ contract IndexFund is ReentrancyGuard {
         // Deposit
         depositCollateral(tokenCollateralAddress, collateralAmount);
 
-        // Valuation Logic
-        uint256 depositValueInUsd = _getUsdValue(tokenCollateralAddress, collateralAmount);
-
         // Minting Logic
         /// @notice This contract assumes 1 dIDX = $1
-        _mintIndexTokens(msg.sender, depositValueInUsd);
+        _mintIndexTokens(msg.sender, tokenCollateralAddress, collateralAmount);
     }
 
-    function depositCollateral(address tokenCollateralAddress, uint256 collateralAmount) public isAllowedToken(tokenCollateralAddress) {
+    function depositCollateral(address tokenCollateralAddress, uint256 collateralAmount)
+        public
+        isAllowedToken(tokenCollateralAddress)
+    {
         s_collateralDeposited[msg.sender][tokenCollateralAddress] += collateralAmount;
         bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), collateralAmount);
         if (!success) {
@@ -160,6 +162,7 @@ contract IndexFund is ReentrancyGuard {
     {
         // valuation
         uint256 usdValue = _getUsdValue(tokenCollateralAddress, collateralAmount); // = amountToBurn
+        console.log("USD Value: ", usdValue);
 
         // burn
         _burn(msg.sender, usdValue);
@@ -168,8 +171,8 @@ contract IndexFund is ReentrancyGuard {
         _redeemCollateral(msg.sender, msg.sender, tokenCollateralAddress, collateralAmount);
     }
 
-    function mintIndexToken(address to, uint256 amountToMint) external moreThanZero(amountToMint) nonReentrant {
-        _mintIndexTokens(to, amountToMint);
+    function mintIndexToken(address to, address tokenCollateralAddress, uint256 collateralAmount) external moreThanZero(collateralAmount) nonReentrant {
+       _mintIndexTokens(to, tokenCollateralAddress, collateralAmount);
         _revertIfHealthFactorIsBroken(to);
     }
 
@@ -210,8 +213,13 @@ contract IndexFund is ReentrancyGuard {
         emit UserLiquidated(user, msg.sender, tokenCollateralAddress, totalCollateralAwarded, debtToCover);
     }
 
-    function getUsdValue(address token, uint256 amount) external view moreThanZero(amount)
-        isAllowedToken(token) returns (uint256) {
+    function getUsdValue(address token, uint256 amount)
+        external
+        view
+        moreThanZero(amount)
+        isAllowedToken(token)
+        returns (uint256)
+    {
         return _getUsdValue(token, amount);
     }
 
@@ -221,19 +229,42 @@ contract IndexFund is ReentrancyGuard {
 
     /* internal & private view & pure functions */
 
-    function _getUsdValue(address token, uint256 amount)
-        private
-        view
-        returns (uint256 usdValue)
-    {
+    function _getUsdValue(address token, uint256 amount) private view returns (uint256 usdValue) {
         uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
-        usdValue = (amount * standardizedPrice) / PRECISION;
+
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+
+        uint256 normalizedAmount;
+        if (tokenDecimals < 18) {
+            // Example with WBTC (8 decimals)
+            // 1 WBTC = 1e8
+            // Normalized Amount = 1e8 * 10^(18-8) = 1e18
+            normalizedAmount = amount * 10 ** (18 - tokenDecimals);
+        } else if (tokenDecimals > 18) {
+            // Example with token with 20 decimals
+            // 1 egToken = 1e20
+            // Normalized Amount = 1e20 / * 10^(20-18) = 1e18
+            normalizedAmount = amount / (10 ** (tokenDecimals - 18));
+        } else {
+            normalizedAmount = amount;
+        }
+
+        usdValue = (normalizedAmount * standardizedPrice) / PRECISION;
         return usdValue;
     }
 
     function _getTokenAmountFromUsd(address token, uint256 usdAmountInWei) private view returns (uint256) {
         uint256 standardizedPrice = OracleLib.getAssetPrice(AggregatorV3Interface(s_priceFeeds[token]));
-        return (usdAmountInWei * PRECISION) / (standardizedPrice * ADDITIONAL_FEED_PRECISION);
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        uint256 normalizedAmount = (usdAmountInWei * PRECISION) / (standardizedPrice * ADDITIONAL_FEED_PRECISION);
+
+        if (tokenDecimals < 18) {
+            return normalizedAmount / 10 ** (18 - tokenDecimals);
+        } else if (tokenDecimals > 18) {
+            return normalizedAmount * 10 ** (tokenDecimals - 18);
+        } else {
+            return normalizedAmount;
+        }
     }
 
     function _burn(address from, uint256 amountIndexTokensToBurn) private {
@@ -243,7 +274,8 @@ contract IndexFund is ReentrancyGuard {
         }
     }
 
-    function _mintIndexTokens(address to, uint256 amountToMint) private {
+    function _mintIndexTokens(address to, address tokenCollateralAddress, uint256 collateralAmount) private {
+        uint256 amountToMint = _getUsdValue(tokenCollateralAddress, collateralAmount);
         s_IndexFundMinted[to] += amountToMint;
         bool success = i_indexToken.mint(to, amountToMint);
         if (!success) {
@@ -310,9 +342,8 @@ contract IndexFund is ReentrancyGuard {
     function getAccountInformation(address user) external view returns (uint256, uint256) {
         return (getTotalMintedValue(user), getAccountCollateralValue(user));
     }
-    
+
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) external view returns (uint256) {
         return _getTokenAmountFromUsd(token, usdAmountInWei);
     }
-
 }
